@@ -20,7 +20,7 @@ Pull requests welcome for additional targets.
         ${loop<\n>:ufields  UNKNOWN / ${var:label} / ${var:value} / - / ${var:extinfo}}\n\
         ${loop<\n>:fofields  FIXED / ${var:label} / ${var:value} / - / ${var:extinfo}}\n
 
-        contact.alerts.command /etc/munin/munin-notify.py
+        contact.alerts.command /etc/munin/munin-notify.py --log-file /var/log/munin/munin-notify.log
 
 1. Configure your alert targets in /etc/munin/munin-notify.yml
 
