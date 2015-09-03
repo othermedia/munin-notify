@@ -1,15 +1,17 @@
-# munin-notify
+# Munin-Notify
+
+by [Other Media](http://www.othermedia.com/)
 
 ## Overview
 
 Send Munin notifications to email or HipChat!
 
-Pull requests welcome for additional targets.
+Pull requests are welcome for fixes, tweaks or additional targets.!
 
 ## Usage
 
-1. Install PyYAML (`yum install PyYAML` / `pip install pyyaml`)
-1. Install mutt (`yum install mutt`)
+1. Install PyYAML (`yum install PyYAML` / `apt install python-yaml` / `pip install pyyaml`)
+1. Install mutt (`yum install mutt` / `apt install mutt`)
 1. Save munin-notify.py to /etc/munin
 1. Chmod munin-notify.py to 0755
 1. Add the following to /etc/munin/munin.conf:
@@ -35,5 +37,5 @@ Pull requests welcome for additional targets.
 
 There are several known issues with Munin's alerting.
 
-1. FIXED alerts do not work correctly (fixed in Munin 2.0.26 - patch available at https://github.com/munin-monitoring/munin/pull/334)
-2. Inherited alert values do not produce alerts (not yet merged - patch available at https://github.com/munin-monitoring/munin/pull/362)
+1. 'FIXED' notifications do not work correctly (fixed in Munin 2.0.26 - patch available at https://github.com/munin-monitoring/munin/pull/334)
+2. Inherited alert thresholds do not produce alerts (not yet merged - patch available at https://github.com/munin-monitoring/munin/pull/362)

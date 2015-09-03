@@ -1,5 +1,27 @@
 #!/usr/bin/python
 
+'''
+Munin-Notify v1.0
+by Other Media
+http://www.othermedia.com/
+
+Copyright 2015 Other Media
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Author: Jason Woods (devel@jasonwoods.me.uk)
+'''
+
 from __future__ import print_function
 
 import datetime
@@ -130,11 +152,11 @@ th {
     text-align: left;
     font-weight: normal;
     color: #fff;
-    background: #e9502a;
+    background: #555;
 }
 th, td {
     padding: 4px;
-    border: 1px solid #82321e;
+    border: 1px solid #333;
 }
 tr.WARNING {
     color: #990;
@@ -185,7 +207,7 @@ tr.FIXED {
 
         content += '''
 </table>
-<p style="font-size: 80%%"><i>Sent from Munin on %s.</i></p>
+<p style="font-size: 80%%"><i>Sent by <a href="https://github.com/othermedia/munin-notify">Munin-Notify</a> on %s.</i></p>
 </body>
 </html>'''.lstrip('\n') % socket.gethostname()
         return subject, content
