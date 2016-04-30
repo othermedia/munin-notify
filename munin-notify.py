@@ -2,11 +2,11 @@
 # pylint: disable=C0103
 
 '''
-Munin-Notify v1.0
+Munin-Notify v2.1
 by Other Media
 http://www.othermedia.com/
 
-Copyright 2015 Other Media
+Copyright 2015-2016 Other Media
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -117,11 +117,11 @@ class MuninTarget(object):
 
         for key, value in definition.iteritems():
             if key not in config:
-                raise ConfigurationError('hipchat setting %s is required' % key)
+                raise ConfigurationError('%s setting %s is required' % (name, key))
             if not isinstance(config[key], value):
                 raise ConfigurationError(
-                    'hipchat setting %s must be a %s (%s given)' %
-                    (key, value, config[key].__class__))
+                    '%s setting %s must be a %s (%s given)' %
+                    (name, key, value, config[key].__class__))
 
     def check_config(self, config):
         '''
