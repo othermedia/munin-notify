@@ -383,6 +383,84 @@ class MuninTargethipchat(MuninTarget):
 
         self.hipchat()
 
+class MuninTargetslack(MuninTarget):
+    '''
+    MuninTargetslack sends notifications to Slack
+    '''
+    def __init__(self):
+        super(MuninTargetslack, self).__init__()
+
+        self.levels_colour = {
+            'FIXED':    'good',
+            'UNKNOWN':  '#aaaaaa',
+            'WARNING':  'warning',
+            'CRITICAL': 'danger',
+        }
+
+        self.config = None
+        self.colour = None
+        self.title = None
+        self.message = None
+
+    def slack(self):
+        '''
+        Send a message to Slack
+        '''
+        payload = {
+            'channel': self.config['channel'],
+            'attachments': [{
+                'color': self.colour,
+                'title': self.title,
+                'text': self.message,
+                'mrkdwn_in': ['text'],
+            }]
+        }
+
+        logging.info(
+            'Posting Slack notification:\n%s - %s',
+            self.title,
+            self.message)
+        requests.post(
+            url=self.config['webhook_url'],
+            data=json.dumps(payload)
+        )
+
+    def check_config(self, config):
+        '''
+        Validate the configuration for this target
+        '''
+        definition = {
+            'channel':     basestring,
+            'webhook_url': basestring,
+        }
+
+        self.config_validator(config, definition)
+
+    def send(self, config, what, status):
+        '''
+        Send to this target
+        '''
+        self.config = config
+        self.title = '[%(group)s] %(host)s' % what
+        self.message = ''
+        for entry in status:
+            if self.message != '':
+                self.message += '\n'
+            self.message += '*%(level)s*: %(graph_title)s - %(label)s' % entry
+            if entry['threshold'] == '-':
+                self.message += ' = %(value)s' % entry
+            else:
+                self.message += ' = %(value)s [%(threshold)s]' % entry
+            if entry['extra'] != '':
+                self.message += ' - %(extra)s' % entry
+
+        level = self.worst_level(status)
+        if level in self.levels_colour:
+            self.colour = self.levels_colour[level]
+        else:
+            self.colour = self.levels_colour['UNKNOWN']
+
+        self.slack()
 
 class MuninNotifications(object):
     '''
