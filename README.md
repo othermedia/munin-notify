@@ -4,7 +4,7 @@ by [Other Media](http://www.othermedia.com/)
 
 ## Overview
 
-Send Munin notifications to email or HipChat!
+Send Munin notifications to email, HipChat and Slack!
 
 Pull requests are welcome for fixes, tweaks or additional targets.!
 
@@ -32,6 +32,9 @@ Pull requests are welcome for fixes, tweaks or additional targets.!
           - type: hipchat
             room: 123456
             token: abcdef0123456789abcdef0123456789
+          - type: slack
+            channel: '#general'
+            webhook_url: http://slack/webhook/url
 
 ## Known Munin Issues
 

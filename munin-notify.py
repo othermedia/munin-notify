@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# pylint: disable=C0103
 
 '''
 Munin-Notify v1.0
@@ -40,17 +41,46 @@ import subprocess
 import json
 import requests
 
-# ConfigurationError is raised during startup if there is a configuration problem
 class ConfigurationError(Exception):
+    '''
+    ConfigurationError is raised during startup if there is a configuration problem
+    '''
     pass
 
-# ParseException is raised if Munin sends something that couldn't be parsed
-# Usually the cause will be a misconfigured Munin
 class ParseException(Exception):
+    '''
+    ParseException is raised if Munin sends something that couldn't be parsed
+    Usually the cause will be a misconfigured Munin
+    '''
     pass
 
-# MuninTarget provides helper methods for target handlers
+def log_output(output):
+    '''
+    Helper to output diagnostics to stdout
+    '''
+    out, err = output
+    if out is not None:
+        logging.info('Output: [%s]', out)
+    if err is not None:
+        logging.info('Error:  [%s]', err)
+
+def quit_with_usage(error=None):
+    '''
+    Quit the program and report Usage information
+    '''
+    if error != None:
+        print(error)
+        print()
+    print('Usage: munin-notify [--log-file=<filename>]')
+    print('  --log-file=<filename>')
+    print('    Specified a path to a file to send log messages to. If no')
+    print('    path is specified, logs are printed to STDOUT.')
+    sys.exit(1)
+
 class MuninTarget(object):
+    '''
+    MuninTarget provides helper methods for target handlers
+    '''
     def __init__(self):
         self.levels = [
             'FIXED',
@@ -60,55 +90,74 @@ class MuninTarget(object):
         ]
 
     def worst_level(self, status):
+        '''
+        Calculate the worst alert level in the set of alerts we're processing
+        '''
         level = 0
-        for e in status:
-            if e['level'] == 'CRITICAL':
+        for entry in status:
+            if entry['level'] == 'CRITICAL':
                 level = 3
                 break
-            elif e['level'] == 'WARNING' and level < 2:
+            elif entry['level'] == 'WARNING' and level < 2:
                 level = 2
-            elif e['level'] != 'FIXED' and level < 1:
+            elif entry['level'] != 'FIXED' and level < 1:
                 level = 1
 
         return self.levels[level]
 
     def config_validator(self, config, definition):
+        '''
+        Validate the configuration
+        '''
         name = string.replace(self.__class__.__name__, 'MuninTarget', '')
 
-        for k, v in config.iteritems():
-            if k not in definition and k != 'type':
-                raise ConfigurationError('Unknown %s setting: %s' % (name, k))
+        for key, value in config.iteritems():
+            if key not in definition and key != 'type':
+                raise ConfigurationError('Unknown %s setting: %s' % (name, key))
 
-        for k, v in definition.iteritems():
-            if k not in config:
-                raise ConfigurationError('hipchat setting %s is required' % k)
-            if not isinstance(config[k], v):
-                raise ConfigurationError('hipchat setting %s must be a %s (%s given)' % (k, v, config[k].__class__))
+        for key, value in definition.iteritems():
+            if key not in config:
+                raise ConfigurationError('hipchat setting %s is required' % key)
+            if not isinstance(config[key], value):
+                raise ConfigurationError(
+                    'hipchat setting %s must be a %s (%s given)' %
+                    (key, value, config[key].__class__))
 
     def check_config(self, config):
+        '''
+        Abstract method for configuration check for a target
+        '''
         raise NotImplementedError('check_config must be implemented')
 
     def send(self, config, what, status):
+        '''
+        Abstract method for target send
+        '''
         raise NotImplementedError('send must be implemented')
 
-# MuninTargetemail sends notifications to email
 class MuninTargetemail(MuninTarget):
-    def log_output(self, output):
-        out, err = output
-        if out is not None:
-            logging.info('Output: [%s]', out)
-        if err is not None:
-            logging.info('Error:  [%s]', err)
+    '''
+    Send Munin email notifications
+    '''
+    def __init__(self):
+        super(MuninTargetemail, self).__init__()
+        self.what = None
+        self.status = None
+        self.subject = None
+        self.content = None
 
-    def send_email(self, recipients, subject, content, what):
-        d = datetime.date.today()
+    def send_email(self, recipients, what):
+        '''
+        Send an email using mutt
+        '''
+        date = datetime.date.today()
         cmdline = [
-            'mutt', '-s', subject,
+            'mutt', '-s', self.subject,
             '-e', 'set copy=no',
             '-e', 'set content_type=text/html',
             '-e', 'my_hdr Importance: High',
             '-e', 'my_hdr References: <%(date)s.%(what)s.munin@%(muninserver)s>' % ({
-                'date':        d.strftime('%Y%m'),
+                'date':        date.strftime('%Y%m'),
                 'what':        what,
                 'muninserver': socket.gethostname(),
             }),
@@ -117,21 +166,29 @@ class MuninTargetemail(MuninTarget):
         cmdline += recipients
         logging.info('Running command: %s', ' '.join(cmdline))
         try:
-            mutt = subprocess.Popen(cmdline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            self.log_output(mutt.communicate(content))
+            mutt = subprocess.Popen(
+                cmdline,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            log_output(mutt.communicate(self.content))
             while mutt.poll() is None:
                 time.sleep(1.0)
-                self.log_output(mutt.communicate(None))
+                log_output(mutt.communicate(None))
             logging.info('Email sent successfully')
-        except OSError as e:
-            logging.error('Email command error: %s', e)
+        except OSError as err:
+            logging.error('Email command error: %s', err)
 
-    def create_email(self, what, status):
-        level = self.worst_level(status)
+    def create_email(self):
+        '''
+        Create the HTML for a Munin email
+        '''
+        level = self.worst_level(self.status)
 
-        subject = '[%s] [%s] %s' % (level, what['group'], what['host'])
-        title = '[%s] %s' % (what['group'], what['host'])
-        content = '''
+        self.subject = '[%s] [%s] %s' % (level, self.what['group'], self.what['host'])
+        title = '[%s] %s' % (self.what['group'], self.what['host'])
+        self.content = '''
 <!DOCTYPE html>
 <html><head>
 <title>%(title)s</title>
@@ -185,34 +242,36 @@ tr.FIXED {
 <th>Value</th>
 <th>Extra</th>
 </tr>'''.lstrip('\n') % ({
-            'title':    title,
-            'subject':  subject,
-            'datetime': datetime.datetime.today().strftime('%d-%m-%Y %H.%M.%S'),
-        })
+    'title':    title,
+    'subject':  self.subject,
+    'datetime': datetime.datetime.today().strftime('%d-%m-%Y %H.%M.%S'),
+})
 
-        for e in status:
-            content += '''
+        for entry in self.status:
+            self.content += '''
 <tr class="%(level)s">
 <td>%(level)s</td>
-<td>%(graph_title)s - %(label)s</td>'''.lstrip('\n') % e
-            if e['threshold'] == '-':
-                content += '''
-<td>%(value)s</td>'''.lstrip('\n') % e
+<td>%(graph_title)s - %(label)s</td>'''.lstrip('\n') % entry
+            if entry['threshold'] == '-':
+                self.content += '''
+<td>%(value)s</td>'''.lstrip('\n') % entry
             else:
-                content += '''
-<td>%(value)s [%(threshold)s]</td>'''.lstrip('\n') % e
-            content += '''
+                self.content += '''
+<td>%(value)s [%(threshold)s]</td>'''.lstrip('\n') % entry
+            self.content += '''
 <td>%(extra)s</td>
-</tr>'''.lstrip('\n') % e
+</tr>'''.lstrip('\n') % entry
 
-        content += '''
+        self.content += '''
 </table>
 <p style="font-size: 80%%"><i>Sent by <a href="https://github.com/othermedia/munin-notify">Munin-Notify</a> on %s.</i></p>
 </body>
 </html>'''.lstrip('\n') % socket.gethostname()
-        return subject, content
 
     def check_config(self, config):
+        '''
+        Validate the configuration for this target
+        '''
         definition = {
             'recipients': list,
         }
@@ -220,16 +279,23 @@ tr.FIXED {
         self.config_validator(config, definition)
 
         if len(config['recipients']) < 1:
-            raise ConfigurationError('email setting recipients must contain at least one email address')
+            raise ConfigurationError(
+                'email setting recipients must contain at least one email address')
 
     def send(self, config, what, status):
-        subject, content = self.create_email(what, status)
-        logging.info('Sending email report with subject: %s', subject)
-        self.send_email(config['recipients'], subject, content, '%(group)s.%(host)s' % what)
+        '''
+        Send to the target
+        '''
+        self.what = what
+        self.status = status
+        self.create_email()
+        logging.info('Sending email report with subject: %s', self.subject)
+        self.send_email(config['recipients'], '%(group)s.%(host)s' % self.what)
 
-
-# MuninTargethipchat sends notifications to HipChat
 class MuninTargethipchat(MuninTarget):
+    '''
+    MuninTargethipchat sends notifications to HipChat
+    '''
     def __init__(self):
         super(MuninTargethipchat, self).__init__()
 
@@ -247,25 +313,40 @@ class MuninTargethipchat(MuninTarget):
             'CRITICAL': 'red',
         }
 
-    def hipchat(self, config, message, colour):
+        self.config = None
+        self.colour = None
+        self.message = None
+
+    def hipchat(self):
+        '''
+        Send a message to HipChat
+        '''
         # This access token is a v1 API token for the group. Label is Fabric
-        # Cannot use v2 as it needs to be setup as an Add-On, or use a personal token, which forces From=Name of Person
+        # Cannot use v2 as it needs to be setup as an Add-On, or use a personal token,
+        # which forces From=Name of Person
         headers = {
-          'Authorization': 'Bearer %s' % (config['token']),
-          'Content-Type': 'application/json',
+            'Authorization': 'Bearer %s' % (self.config['token']),
+            'Content-Type': 'application/json',
         }
 
         payload = {
-          'message_format': 'html',
-          'notify': True,
-          'color': colour,
-          'message': message,
+            'message_format': 'html',
+            'notify': True,
+            'color': self.colour,
+            'message': self.message,
         }
 
         logging.info('Posting HipChat notification:\n%s', payload['message'])
-        requests.post(url='http://api.hipchat.com/v2/room/%s/notification' % config['room'], headers=headers, data=json.dumps(payload))
+        requests.post(
+            url='http://api.hipchat.com/v2/room/%s/notification' % self.config['room'],
+            headers=headers,
+            data=json.dumps(payload)
+        )
 
     def check_config(self, config):
+        '''
+        Validate the configuration for this target
+        '''
         definition = {
             'room':  int,
             'token': basestring,
@@ -274,30 +355,39 @@ class MuninTargethipchat(MuninTarget):
         self.config_validator(config, definition)
 
     def send(self, config, what, status):
-        message = '<b>[%(group)s] %(host)s</b>' % what
-        for e in status:
-            if e['level'] in self.levels_img:
-                e['img'] = self.levels_img[e['level']]
+        '''
+        Send to this target
+        '''
+        self.config = config
+        self.message = '<b>[%(group)s] %(host)s</b>' % what
+        for entry in status:
+            if entry['level'] in self.levels_img:
+                entry['img'] = self.levels_img[entry['level']]
             else:
-                e['img'] = self.levels_img['UNKNOWN']
-            message += '<br>\n<img src="http://bamboo.othermedia.com/images/iconsv4/%(img)s" alt=""> <b>%(level)s</b>: %(graph_title)s - %(label)s' % e
-            if e['threshold'] == '-':
-                message += ' = %(value)s' % e
+                entry['img'] = self.levels_img['UNKNOWN']
+            self.message += '<br>\n' \
+                '<img src="http://bamboo.othermedia.com/images/iconsv4/%(img)s" alt=""> ' \
+                '<b>%(level)s</b>: %(graph_title)s - %(label)s' % entry
+            if entry['threshold'] == '-':
+                self.message += ' = %(value)s' % entry
             else:
-                message += ' = %(value)s [%(threshold)s]' % e
-            if e['extra'] != '':
-                message += ' - %(extra)s' % e
+                self.message += ' = %(value)s [%(threshold)s]' % entry
+            if entry['extra'] != '':
+                self.message += ' - %(extra)s' % entry
 
         level = self.worst_level(status)
         if level in self.levels_colour:
-            colour = self.levels_colour[level]
+            self.colour = self.levels_colour[level]
         else:
-            colour = self.levels_colour['UNKNOWN']
+            self.colour = self.levels_colour['UNKNOWN']
 
-        self.hipchat(config, message, colour)
+        self.hipchat()
 
-# MuninNotifications is the main class
+
 class MuninNotifications(object):
+    '''
+    MuninNotifications is the main class
+    '''
     def __init__(self):
         self.targets = {}
 
@@ -308,36 +398,70 @@ class MuninNotifications(object):
             'CRITICAL',
         ]
 
-        log_config = {
+        self.log_config = {
             'level': logging.NOTSET,
         }
 
+        self.config = None
+
+        self.init_logging()
+        self.init_config()
+
+        self.what = None
+        self.meta = None
+        self.status = None
+
+        try:
+            self.parse()
+        except ParseException as err:
+            logging.error('Parse error: %s', err)
+        except IOError as err:
+            logging.error('Failed to read: %s', err)
+        except KeyboardInterrupt as err:
+            pass
+
+        logging.info('=====FINISHED=====')
+
+    def read_args(self):
+        '''
+        Read command line arguments
+        '''
         try:
             opts, args = getopt.getopt(sys.argv[1:], 'hl:', ['help', 'log-file='])
-        except getopt.GetoptError as e:
-            self.quit_with_usage(e)
+        except getopt.GetoptError as err:
+            quit_with_usage(err)
 
         if len(args) != 0:
-            self.quit_with_usage('Unexpected arguments')
+            quit_with_usage('Unexpected arguments')
 
-        for o, v in opts:
-            if o == '--log-file':
-                log_config['filename'] = v
-            elif o in ('-h', '--help'):
-                self.quit_with_usage()
+        for opt, value in opts:
+            if opt == '--log-file':
+                self.log_config['filename'] = value
+            elif opt in ('-h', '--help'):
+                quit_with_usage()
             else:
-                self.quit_with_usage('unhandled option: %s' % o)
+                quit_with_usage('unhandled option: %s' % opt)
 
+    def init_logging(self):
+        '''
+        Initialise logging
+        '''
         try:
-            # pylint: disable=W0142
-            logging.basicConfig(**log_config)
-        except IOError as e:
-            self.quit_with_usage(e)
+            logging.basicConfig(**self.log_config)
+        except IOError as err:
+            quit_with_usage(err)
 
-        logging.info('=====STARTING %s=====', datetime.datetime.today().strftime('%d-%m-%Y %H.%M.%S'))
+        logging.info(
+            '=====STARTING %s=====',
+            datetime.datetime.today().strftime('%d-%m-%Y %H.%M.%S')
+        )
 
+    def init_config(self):
+        '''
+        Initialise configuration
+        '''
         try:
-            self.config = self.load_config('/etc/munin/munin-notify.yml')
+            self.load_config('/etc/munin/munin-notify.yml')
 
             if 'targets' not in self.config:
                 raise ConfigurationError('targets missing')
@@ -360,75 +484,67 @@ class MuninNotifications(object):
 
                 self.targets[target['type']].check_config(target)
 
-        except ConfigurationError as e:
-            logging.error('Configuration error: %s', e)
+        except ConfigurationError as err:
+            logging.error('Configuration error: %s', err)
             sys.exit(1)
 
-        self.what = None
-        self.meta = None
-        self.status = None
-
-        try:
-            self.parse()
-        except ParseException as e:
-            logging.error('Parse error: %s', e)
-        except IOError as e:
-            logging.error('Failed to read: %s', e)
-        except KeyboardInterrupt as e:
-            pass
-
-        logging.info('=====FINISHED=====')
-
-    def quit_with_usage(self, error=None):
-        if error != None:
-            print(error)
-            print()
-        print('Usage: munin-notify [--log-file=<filename>]')
-        print('  --log-file=<filename>')
-        print('    Specified a path to a file to send log messages to. If no')
-        print('    path is specified, logs are printed to STDOUT.')
-        sys.exit(1)
-
     def load_config(self, fname):
+        '''
+        Load the YAML configuration
+        '''
         try:
-            with open(fname, 'r') as r:
-                return yaml.load(r)
-        except IOError as e:
-            raise ConfigurationError('Failed to read configuration: %s' % e)
-        except yaml.YAMLError as e:
-            raise ConfigurationError('YAML error: %s' % e)
+            with open(fname, 'r') as reader:
+                self.config = yaml.load(reader)
+        except IOError as err:
+            raise ConfigurationError('Failed to read configuration: %s' % err)
+        except yaml.YAMLError as err:
+            raise ConfigurationError('YAML error: %s' % err)
 
     def invoke_targets(self):
+        '''
+        Invoke the targets with the current host and status
+        '''
         for target in self.config['targets']:
             logging.info('Invoking target: %s', target['type'])
             self.targets[target['type']].send(target, self.what, self.status)
 
-    def parse_what(self, line):
-        s = line.split(' / ')
-        if len(s) != 4:
+    @classmethod
+    def parse_what(cls, line):
+        '''
+        Parse a header line from Munin
+        '''
+        parts = line.split(' / ')
+        if len(parts) != 4:
             raise ParseException('Host line invalid')
         what = {
-            'group':          s[0],
-            'host':           s[1],
-            'graph_category': s[2],
-            'graph_title':    s[3],
+            'group':          parts[0],
+            'host':           parts[1],
+            'graph_category': parts[2],
+            'graph_title':    parts[3],
         }
         return what
 
-    def parse_status(self, line):
-        s = line.split(' / ')
-        if len(s) != 5:
+    @classmethod
+    def parse_status(cls, line):
+        '''
+        Parse a status line from Munin
+        '''
+        parts = line.split(' / ')
+        if len(parts) != 5:
             raise ParseException('Status line invalid')
         status = {
-            'level':     s[0],
-            'label':     s[1],
-            'value':     s[2],
-            'threshold': s[3],
-            'extra':     s[4],
+            'level':     parts[0],
+            'label':     parts[1],
+            'value':     parts[2],
+            'threshold': parts[3],
+            'extra':     parts[4],
         }
         return status
 
     def parse(self):
+        '''
+        Begin parsing STDIN from Munin and triggering targets
+        '''
         while True:
             line = sys.stdin.readline()
             if line == '':
@@ -439,7 +555,9 @@ class MuninNotifications(object):
             logging.info("Input: [%s]", line)
             if line[0] != ' ' and line[0] != '\t':
                 host_line = self.parse_what(line)
-                if self.what is not None and len(self.status) > 0 and (host_line['host'] != self.what['host'] or host_line['group'] != self.what['group']):
+                if self.what is not None and len(self.status) > 0 and (\
+                    host_line['host'] != self.what['host'] or \
+                    host_line['group'] != self.what['group']):
                     self.invoke_targets()
                     self.status = None
                 self.what = {
