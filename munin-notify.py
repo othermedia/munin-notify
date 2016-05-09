@@ -2,7 +2,7 @@
 # pylint: disable=C0103
 
 '''
-Munin-Notify v2.1
+Munin-Notify v2.2.0
 by Other Media
 http://www.othermedia.com/
 
