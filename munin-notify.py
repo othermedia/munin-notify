@@ -401,6 +401,7 @@ class MuninTargetslack(MuninTarget):
         self.colour = None
         self.title = None
         self.message = None
+        self.fallback = None
 
     def slack(self):
         '''
@@ -409,6 +410,7 @@ class MuninTargetslack(MuninTarget):
         payload = {
             'channel': self.config['channel'],
             'attachments': [{
+                'fallback': self.fallback,
                 'color': self.colour,
                 'title': self.title,
                 'text': self.message,
@@ -455,6 +457,12 @@ class MuninTargetslack(MuninTarget):
                 self.message += ' - %(extra)s' % entry
 
         level = self.worst_level(status)
+        self.fallback = '%(group)s host %(host)s is now in a %(level)s state' % {
+            'group': what['group'],
+            'host': what['host'],
+            'level': level,
+        }
+
         if level in self.levels_colour:
             self.colour = self.levels_colour[level]
         else:
