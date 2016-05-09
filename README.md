@@ -38,7 +38,7 @@ Pull requests are welcome for fixes, tweaks or additional targets.!
 
 ## Known Munin Issues
 
-There are several known issues with Munin's alerting.
+There are several known issues with Munin's alerting. It's recommended that you apply the following patches to your Munin installation if necessary to ensure that alerting is accurate.
 
-1. 'FIXED' notifications do not work correctly (fixed in Munin 2.0.26 - patch available at https://github.com/munin-monitoring/munin/pull/334)
-2. Inherited alert thresholds do not produce alerts (not yet merged - patch available at https://github.com/munin-monitoring/munin/pull/362)
+1. 'FIXED' notifications do not work correctly (fixed in future Munin 2.0.26 - patch available at https://github.com/munin-monitoring/munin/pull/334)
+2. Inherited alert thresholds do not produce alerts (fixed in future Munin 2.0.26 - patch available at https://github.com/munin-monitoring/munin/pull/362)
