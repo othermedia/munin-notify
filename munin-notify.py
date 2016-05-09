@@ -71,10 +71,12 @@ def quit_with_usage(error=None):
     if error != None:
         print(error)
         print()
-    print('Usage: munin-notify [--log-file=<filename>]')
-    print('  --log-file=<filename>')
+    print('Usage: munin-notify [OPTION]...')
+    print('  -h, --help')
+    print('    Show this message')
+    print('  -l, --log-file=<filename>')
     print('    Specified a path to a file to send log messages to. If no')
-    print('    path is specified, logs are printed to STDOUT.')
+    print('    path is specified, logs are printed to STDOUT')
     sys.exit(1)
 
 class MuninTarget(object):
@@ -490,6 +492,7 @@ class MuninNotifications(object):
 
         self.config = None
 
+        self.read_args()
         self.init_logging()
         self.init_config()
 
